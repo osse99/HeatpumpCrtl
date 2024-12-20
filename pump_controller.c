@@ -23,7 +23,7 @@ char t_pump_output[]="w1_bus_master1/28-00000b5b88a3";
 char t_indoor[]="w1_bus_master2/28-00000039122b";
 
 
-//Relay WiringPi GPIO pins
+// WiringPi GPIO pins
 int valve_pin=25;
 int heatpump_pin=28;
 
@@ -34,8 +34,8 @@ int min_t_hotwater=39;
 int min_t_outdoor=-10;
 
 // Target temp calculation
-#define M_VALUE 22
-#define K_VALUE 0.4
+int m_value=22;
+double k_value=0.2;
 
 // Other
 #ifndef DEBUG
@@ -68,7 +68,7 @@ void read_config(char *konffile)
 				printf("OUTDOOR: %s\n", str);
 				strcpy(t_outdoor, str);
 			}
-			if ( config_lookup_string(&cfg, "OUT_TO_FLOOR", &str) ) {
+			if ( config_lookup_string(&cfg, "OUTPUT_TO_FLOOR", &str) ) {
 				printf("OUT_TO_FLOOR: %s\n", str);
 				strcpy(t_output_to_floor, str);
 			}
@@ -111,6 +111,15 @@ void read_config(char *konffile)
 				printf("MIN_OUTDOOR: %d\n", min_t_outdoor);
 			}
 
+			// Traget temperature calculation
+			if (  config_lookup_int(&cfg, "M_VALUE", &m_value) ) {
+				printf("M_VALUE: %d\n", m_value);
+			}
+			if (  config_lookup_float(&cfg, "K_VALUE", &k_value) ) {
+				printf("K_VALUE: %3.3f\n", k_value);
+			}
+
+
 		}
 	} else {
 		fprintf(stderr,"No config file exist, skipping and using defaults and args only\n");
@@ -118,6 +127,7 @@ void read_config(char *konffile)
 }	
 
 // Set up RaspberryPi ports WiringPi
+// Can also be called at program end to shut down pumps and valves
 int gpio_setup()
 {
 	if (wiringPiSetup() == -1)
@@ -140,11 +150,11 @@ int gpio_setup()
 
 	// Switch valve relay
 	// between heat production (off) and hotwater (on)
-	pinMode(25, OUTPUT);
+	pinMode(valve_pin, OUTPUT);
 	digitalWrite(valve_pin, 0);	
 	// Heat pump relay
 	// just on/off
-	pinMode(28, OUTPUT);
+	pinMode(heatpump_pin, OUTPUT);
 	digitalWrite(heatpump_pin, 0);	
 	return(0);
 }
@@ -152,40 +162,81 @@ int gpio_setup()
 // Run to max floor temp and max hotwater temp
 int start_heat_run()
 {
-	/*
-	   echo "Starting circulation"
-	   date
-#
-# Start circulation
-gpio pwm 1 120
-sleep 5
-#
-# Start heatpump and turn valve
-gpio write 28 1
-gpio write 25 1
-echo "Heating hot water"
-while  [ `cat /sys/bus/w1/devices/w1_bus_master1/28-00000b5b88a3/w1_slave | tail -n1 | cut -d '=' -f2` -lt $MAX_HW ]
-do
-echo -n "."
-sleep 30
-done
-echo
-echo "Shutting down"
-date
-gpio write 28 0
-sleep 60
-gpio write 25 0
-sleep 180
-gpio pwm 1 5
-echo "Done"
-	 */
+	float temp, floor_temp;
+	int pump_working;
+
+	logging("Heat run", "Starting to heat floor", 0);
 	// Start circulation
-	pwmWrite(1, 100);
-	pwmWrite(2, 130);
+	pwmWrite(1,120);
+	pwmWrite(23,120);
 	sleep(5);
-	// Start heat pump, heating floor
-	digitalWrite(heatpump_pin, 1);	
-	// while t_output_to_floor < MAX_FLOOR_OUTPUT
+	// Start heatpump
+	digitalWrite(heatpump_pin,1);
+	// Run until max floor temp
+	pump_working=0;
+	do
+	{
+		sleep(10);
+		if ( get_temperature(t_output_to_floor, &temp) != 0)
+		{	
+			logging("Get_temperature failed:", t_output_to_floor, 0);
+			gpio_setup();
+			exit(-1);
+		}
+		if ( pump_working == 2)
+		{
+			floor_temp=temp;
+			if (get_temperature(t_pump_output, &temp) != 0)
+			{	
+				logging("Get_temperature failed:", t_pump_output, 0);
+				gpio_setup();
+				exit(-1);
+			}
+			if ( floor_temp > temp)
+			{
+				logging("Heat run", "No heat from pump after 3 cycles", 0);
+				gpio_setup();
+				exit(-1);
+			}
+			if ( DEBUG )
+			{
+				printf("Heat run, check that pump is working temp: %3.3f floor_temp: %3.3f\n", temp, floor_temp);
+			}
+			temp=floor_temp;
+		}
+		pump_working++;
+		if ( DEBUG )
+		{
+			printf("Heat run, temp: %3.3f\n", temp);
+		}
+	}
+	while ( temp < max_floor_output );
+	logging("Heat run", "Floor is hot, switching to hotwater", 0);
+	// Start hot water production
+	digitalWrite(valve_pin, 1);	
+	do
+	{
+		sleep(10);
+		if (get_temperature(t_pump_output, &temp) != 0)
+		{	
+			logging("Get_temperature failed:", t_pump_output, 0);
+			gpio_setup();
+			exit(-1);
+		}
+		if ( DEBUG )
+		{
+			printf("Heat run, hotwater, temp: %3.3f\n", temp);
+		}
+	}
+	while ( temp < pump_max_output );
+	// Done shut down
+	pwmWrite(1,5);
+	pwmWrite(23,5);
+	sleep(5);
+	// Stop heatpump, reset valve
+	digitalWrite(heatpump_pin,0);
+	digitalWrite(valve_pin, 0);
+	logging("Heat run", "Hotwater is at pump max temp, done", 0);
 
 	// If t_pump_output not bigger than t_output_to_floor = AFTER 5 minuters = ALARM  !!
 	return(0);
@@ -194,6 +245,55 @@ echo "Done"
 // Only heat the hotwater
 int start_hotwater_run()
 {
+	float temp, floor_temp;
+	int pump_working;
+
+	logging("Hotwater run", "Starting to heat water", 0);
+	// Start circulation
+	pwmWrite(1,120);
+	pwmWrite(23,120);
+	digitalWrite(valve_pin, 1);	
+	sleep(5);
+	digitalWrite(heatpump_pin,1);
+	pump_working=0;
+	do
+	{
+		sleep(10);
+		if ( get_temperature(t_pump_output, &temp) != 0)
+		{	
+			logging("Get_temperature failed:", t_pump_output, 0);
+			gpio_setup();
+			exit(-1);
+		}
+		if ( pump_working == 2)
+		{
+			floor_temp=temp;
+			if (get_temperature(t_pump_output, &temp) != 0)
+			{	
+				logging("Get_temperature failed:", t_pump_output, 0);
+				gpio_setup();
+				exit(-1);
+			}
+			if ( floor_temp > temp)
+			{
+				logging("Heat run", "No heat from pump after 3 cycles", 0);
+				gpio_setup();
+				exit(-1);
+			}
+			if ( DEBUG )
+			{
+				printf("Heat run, check that pump is working temp: %3.3f floor_temp: %3.3f\n", temp, floor_temp);
+			}
+			temp=floor_temp;
+		}
+		pump_working++;
+		if ( DEBUG )
+		{
+			printf("Hotwater run, temp: %3.3f\n", temp);
+		}
+	}
+	while ( temp < pump_max_output );
+	logging("Hot water run", "Hotwater is at pump max temp, done", 0);
 	return(0);
 }
 
@@ -203,7 +303,7 @@ int calculate_target_temp(float *outdoor_temp, float *ret_temp)
 
 	// *outdoor_temp=-10;
 	// Y=KX+M inverted
-	*ret_temp=M_VALUE - K_VALUE * *outdoor_temp;
+	*ret_temp=m_value - k_value * *outdoor_temp;
 	return(0);	
 }
 
@@ -219,8 +319,7 @@ int to_cold()
 	}
 	if ( temp < min_t_outdoor )
 	{	
-		printf("To cold\n");
-		sleep(10);
+		logging("To_cold", "Outdoor temperature to low", 0);
 		return(1);
 	} else {
 		return(0);
@@ -241,10 +340,7 @@ int hot_water()
 	{
 		return(1);
 	}
-	if ( DEBUG )
-	{
-		printf("No hot water needed\n");
-	}
+	logging("Hot_water", "Hot water temp to low", 0);
 	return(0);
 }
 
@@ -270,6 +366,7 @@ int heat()
 	}
 	if ( current_temp < target_temp )
 	{
+		logging("Heat", "Heat needed", 0);
 		if ( DEBUG )
 		{
 			printf("Heat needed\n");
@@ -332,16 +429,27 @@ int main(int argc, char *argv[] )
 		close(tmp);
 	}
 
+	gpio_setup();
+	//gpio_stop();
 
 	while (1)
 	{
-		sleep(10);
+		sleep(1);
 		if ( to_cold() == 1)
+		{
 			continue;
-		if ( hot_water() == 1)
-			continue;
+		}
 		if ( heat() == 1)
+		{
+			start_heat_run();
 			continue;
+		}
+		if ( hot_water() == 1)
+		{
+			start_hotwater_run();
+			continue;
+		}
 		printf("Not cold and no hot water\n");
+		sleep(10);
 	}
-}	
+}

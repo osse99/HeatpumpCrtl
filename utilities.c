@@ -21,6 +21,7 @@
 
 FILE *logfile;
 
+int gpio_setup();
 
 int writelog( const char * message)
 {
@@ -49,8 +50,12 @@ int logging(const char* tag, const char* message, int err) {
 	localtime_r(&now,&_calendar_time);
 
 	strftime(_buf, MAX_COUNT, "%c", &_calendar_time);
-	snprintf(logmessage, sizeof(logmessage),"%s [%s]: %s errno: %s\n", _buf, tag, message, strerror(err));
-	printf("Err: %d\n", err);
+	if ( err != 0 )
+	{
+		snprintf(logmessage, sizeof(logmessage),"%s [%s]: %s errno: %s\n", _buf, tag, message, strerror(err));
+	} else {
+		snprintf(logmessage, sizeof(logmessage),"%s [%s]: %s\n", _buf, tag, message);
+	}
 	return(writelog(logmessage));
 	
 }
@@ -88,8 +93,8 @@ int get_temperature(char *sensor, float *ret_temp)
         sscanf(temp,"t=%s",temp);
         // atof: changes string to float.
         *ret_temp = atof(temp)/1000;
-        if (DEBUG)
-                printf(" temp : %3.3f °C\n", *ret_temp);
+        // if (DEBUG)
+        //        printf(" temp : %3.3f °C\n", *ret_temp);
         close(fd);
 
         return 0;
@@ -104,6 +109,10 @@ void sigint_handler(int signal)
                 printf("\nIntercepted SIGHUP!\n");
         if (signal == SIGTERM)
                 printf("\nIntercepted SIGTERM!\n");
+	if ( logfile != NULL )
+		fclose(logfile);
+	// Shut down pumps and valve
+	gpio_setup();
         exit(1);
 }
 

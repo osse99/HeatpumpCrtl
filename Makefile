@@ -1,7 +1,8 @@
 TARGET = pump_controller
-LIBS = -lmariadb -lwiringPi -lconfig
+LIBS = -lwiringPi -lconfig
 CC = gcc
-CFLAGS = -g -Wall -D DEBUG=1 -D SIMULATE=1
+# CFLAGS = -g -Wall -D DEBUG=1 -D SIMULATE=1
+CFLAGS = -g -Wall -D DEBUG=1
 
 .PHONY: default all clean
 
