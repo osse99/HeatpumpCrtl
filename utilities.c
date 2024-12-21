@@ -9,7 +9,6 @@
 #include <signal.h>
 
 #define MAX_COUNT 512
-#define LOGFILE "/tmp/olle.txt"
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -20,6 +19,7 @@
 #endif
 
 FILE *logfile;
+extern char logfile_path[];
 
 int gpio_setup();
 
@@ -28,7 +28,7 @@ int writelog( const char * message)
 	if (logfile == NULL)
 	{
 		printf("Open logfile\n");
-		logfile = fopen(LOGFILE, "a");
+		logfile = fopen(logfile_path, "a");
 		if ( logfile == NULL)
 		{
 			fprintf(stderr, "Unable to open/create logfile\n");
@@ -36,6 +36,7 @@ int writelog( const char * message)
 		}
 	}
 	fprintf(logfile, "%s", message);
+	fflush(logfile);
 	return(0);
 }
 
@@ -52,9 +53,9 @@ int logging(const char* tag, const char* message, int err) {
 	strftime(_buf, MAX_COUNT, "%c", &_calendar_time);
 	if ( err != 0 )
 	{
-		snprintf(logmessage, sizeof(logmessage),"%s [%s]: %s errno: %s\n", _buf, tag, message, strerror(err));
+		snprintf(logmessage, sizeof(logmessage),"%s\t[%s]: %s\terrno: %s\n", _buf, tag, message, strerror(err));
 	} else {
-		snprintf(logmessage, sizeof(logmessage),"%s [%s]: %s\n", _buf, tag, message);
+		snprintf(logmessage, sizeof(logmessage),"%s\t[%s]: %s\t-\n", _buf, tag, message);
 	}
 	return(writelog(logmessage));
 	
@@ -71,7 +72,7 @@ int get_temperature(char *sensor, float *ret_temp)
 
         if ( SIMULATE == 1 )
 	{
-		sprintf(path, "simulate/%s", sensor);
+		sprintf(path, "/tmp/simulate/%s", sensor);
 	} else {
 		sprintf(path, "/sys/bus/w1/devices/%s/w1_slave", sensor);
 	}
@@ -113,6 +114,7 @@ void sigint_handler(int signal)
 		fclose(logfile);
 	// Shut down pumps and valve
 	gpio_setup();
+	logging("Terminated", "Process terminated by signal", 0);
         exit(1);
 }
 

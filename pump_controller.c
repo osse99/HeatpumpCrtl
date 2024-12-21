@@ -14,6 +14,13 @@
 #include <sys/stat.h>
 #include "utilities.h"
 
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
+// Pump max running time/loops
+#define MAX_PUMP_RUNNING 100
+
 // Temperature probe MAC address mappings
 char t_outdoor[]="w1_bus_master1/28-00000b5c6f2a";
 char t_output_to_floor[]="w1_bus_master1/28-00000b5450f9";
@@ -21,7 +28,6 @@ char t_return_from_floor[]="w1_bus_master1/28-000009ff2514";
 char t_hotwater[]="w1_bus_master2/28-000000384a6d";
 char t_pump_output[]="w1_bus_master1/28-00000b5b88a3";
 char t_indoor[]="w1_bus_master2/28-00000039122b";
-
 
 // WiringPi GPIO pins
 int valve_pin=25;
@@ -38,10 +44,7 @@ int m_value=22;
 double k_value=0.2;
 
 // Other
-#ifndef DEBUG
-#define DEBUG 0
-#endif
-
+char logfile_path[]="/tmp/olle.log";
 
 // Read the configuration file and override compile time defaults
 //
@@ -118,11 +121,16 @@ void read_config(char *konffile)
 			if (  config_lookup_float(&cfg, "K_VALUE", &k_value) ) {
 				printf("K_VALUE: %3.3f\n", k_value);
 			}
+			// Other
+			if ( config_lookup_string(&cfg, "LOGFILE", &str) ) {
+				printf("LOGFILE: %s\n", str);
+				strcpy(logfile_path, str);
+			}
 
 
 		}
 	} else {
-		fprintf(stderr,"No config file exist, skipping and using defaults and args only\n");
+		logging("Readconfig", "No config file exist, skipping and using defaults and args only", 0);
 	}
 }	
 
@@ -132,7 +140,7 @@ int gpio_setup()
 {
 	if (wiringPiSetup() == -1)
 	{
-		perror("Can't initialize GPIO");
+		logging("WiringPi", "Can't initialize GPIO", 0);
 		return(-1) ;
 	}
 
@@ -192,17 +200,23 @@ int start_heat_run()
 				gpio_setup();
 				exit(-1);
 			}
+			if ( DEBUG )
+			{
+				printf("Heat run, check that pump is working temp: %3.3f floor_temp: %3.3f\n", temp, floor_temp);
+			}
 			if ( floor_temp > temp)
 			{
 				logging("Heat run", "No heat from pump after 3 cycles", 0);
 				gpio_setup();
 				exit(-1);
 			}
-			if ( DEBUG )
-			{
-				printf("Heat run, check that pump is working temp: %3.3f floor_temp: %3.3f\n", temp, floor_temp);
-			}
 			temp=floor_temp;
+		}
+		if ( pump_working > MAX_PUMP_RUNNING )
+		{
+			logging("Heat run", "Pump running longer than MAX_PUMP_RUN, aborting", 0);
+			gpio_setup();
+			exit(-1);
 		}
 		pump_working++;
 		if ( DEBUG )
@@ -223,10 +237,17 @@ int start_heat_run()
 			gpio_setup();
 			exit(-1);
 		}
+		if ( pump_working > MAX_PUMP_RUNNING )
+		{
+			logging("Heat run", "Pump running longer than MAX_PUMP_RUN, aborting", 0);
+			gpio_setup();
+			exit(-1);
+		}
 		if ( DEBUG )
 		{
 			printf("Heat run, hotwater, temp: %3.3f\n", temp);
 		}
+		pump_working++;
 	}
 	while ( temp < pump_max_output );
 	// Done shut down
@@ -245,7 +266,7 @@ int start_heat_run()
 // Only heat the hotwater
 int start_hotwater_run()
 {
-	float temp, floor_temp;
+	float temp, pump_temp;
 	int pump_working;
 
 	logging("Hotwater run", "Starting to heat water", 0);
@@ -267,24 +288,30 @@ int start_hotwater_run()
 		}
 		if ( pump_working == 2)
 		{
-			floor_temp=temp;
-			if (get_temperature(t_pump_output, &temp) != 0)
+			pump_temp=temp;
+			if (get_temperature(t_hotwater, &temp) != 0)
 			{	
-				logging("Get_temperature failed:", t_pump_output, 0);
-				gpio_setup();
-				exit(-1);
-			}
-			if ( floor_temp > temp)
-			{
-				logging("Heat run", "No heat from pump after 3 cycles", 0);
+				logging("Get_temperature failed:", t_hotwater, 0);
 				gpio_setup();
 				exit(-1);
 			}
 			if ( DEBUG )
 			{
-				printf("Heat run, check that pump is working temp: %3.3f floor_temp: %3.3f\n", temp, floor_temp);
+				printf("Hotwater, verify that pump is working temp: %3.3f hotwater_temp: %3.3f\n", pump_temp, temp);
 			}
-			temp=floor_temp;
+			if ( pump_temp < temp)
+			{
+				logging("Heat run", "No heat from pump after 3 cycles", 0);
+				gpio_setup();
+				exit(-1);
+			}
+			temp=pump_temp;
+		}
+		if ( pump_working > MAX_PUMP_RUNNING )
+		{
+			logging("Hotwater run", "Pump running longer than MAX_PUMP_RUN, aborting", 0);
+			gpio_setup();
+			exit(-1);
 		}
 		pump_working++;
 		if ( DEBUG )
@@ -297,7 +324,7 @@ int start_hotwater_run()
 	return(0);
 }
 
-// Simple line, to be enhanced
+// Simple kx+m line, to be enhanced
 int calculate_target_temp(float *outdoor_temp, float *ret_temp)
 {
 
@@ -404,9 +431,6 @@ int main(int argc, char *argv[] )
 	/* Override defaults from compile time */
 	read_config(konffile);
 
-
-	logging("Valve pin", "Heatpump pin", 0);
-
 	// Catch signals
 	// Stop pumps and reset switch valve
 	set_signal_action();
@@ -429,8 +453,10 @@ int main(int argc, char *argv[] )
 		close(tmp);
 	}
 
-	gpio_setup();
-	//gpio_stop();
+	if (gpio_setup() != 0)
+	{
+		exit( -1);
+	}
 
 	while (1)
 	{
