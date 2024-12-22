@@ -188,6 +188,10 @@ int start_heat_run()
 	do
 	{
 		sleep(LOOP_DELAY);
+		if (DEBUG)
+		{
+			debug_temperature();
+		}
 		if ( get_temperature(t_output_to_floor, &temp) != 0)
 		{	
 			logging("Get_temperature failed:", t_output_to_floor, 0);
@@ -234,6 +238,10 @@ int start_heat_run()
 	do
 	{
 		sleep(LOOP_DELAY);
+		if (DEBUG)
+		{
+			debug_temperature();
+		}
 		if (get_temperature(t_pump_output, &temp) != 0)
 		{	
 			logging("Get_temperature failed:", t_pump_output, 0);
@@ -283,6 +291,10 @@ int start_hotwater_run()
 	do
 	{
 		sleep(LOOP_DELAY);
+		if (DEBUG)
+		{
+			debug_temperature();
+		}
 		if ( get_temperature(t_pump_output, &temp) != 0)
 		{	
 			logging("Get_temperature failed:", t_pump_output, 0);
@@ -473,6 +485,10 @@ int main(int argc, char *argv[] )
 	while (1)
 	{
 		sleep(1);
+		if (DEBUG)
+		{
+			debug_temperature();
+		}
 		if ( to_cold() == 1)
 		{
 			continue;
