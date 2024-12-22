@@ -1,6 +1,6 @@
 # HeatpumpCrtl
 Heatpump controller for RaspberryPi
 
-Just some prototyping at the moment
+Might be working now so v0.1 :-)
 
 Some documentation in the pdf's
