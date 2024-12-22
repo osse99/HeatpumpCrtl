@@ -18,8 +18,11 @@
 #define DEBUG 0
 #endif
 
-// Pump max running time/loops
-#define MAX_PUMP_RUNNING 100
+// Pump max running time/loops/start delay
+#define MAX_PUMP_RUNNING 240
+#define LOOP_DELAY 30
+#define NEXT_START_DELAY 1800
+#define STARTUP_LOOPS 3
 
 // Temperature probe MAC address mappings
 char t_outdoor[]="w1_bus_master1/28-00000b5c6f2a";
@@ -161,7 +164,7 @@ int gpio_setup()
 	pinMode(valve_pin, OUTPUT);
 	digitalWrite(valve_pin, 0);	
 	// Heat pump relay
-	// just on/off
+	// simple on/off
 	pinMode(heatpump_pin, OUTPUT);
 	digitalWrite(heatpump_pin, 0);	
 	return(0);
@@ -184,14 +187,14 @@ int start_heat_run()
 	pump_working=0;
 	do
 	{
-		sleep(10);
+		sleep(LOOP_DELAY);
 		if ( get_temperature(t_output_to_floor, &temp) != 0)
 		{	
 			logging("Get_temperature failed:", t_output_to_floor, 0);
 			gpio_setup();
 			exit(-1);
 		}
-		if ( pump_working == 2)
+		if ( pump_working == STARTUP_LOOPS)
 		{
 			floor_temp=temp;
 			if (get_temperature(t_pump_output, &temp) != 0)
@@ -230,7 +233,7 @@ int start_heat_run()
 	digitalWrite(valve_pin, 1);	
 	do
 	{
-		sleep(10);
+		sleep(LOOP_DELAY);
 		if (get_temperature(t_pump_output, &temp) != 0)
 		{	
 			logging("Get_temperature failed:", t_pump_output, 0);
@@ -258,8 +261,8 @@ int start_heat_run()
 	digitalWrite(heatpump_pin,0);
 	digitalWrite(valve_pin, 0);
 	logging("Heat run", "Hotwater is at pump max temp, done", 0);
-
-	// If t_pump_output not bigger than t_output_to_floor = AFTER 5 minuters = ALARM  !!
+	// Delay until next acceptable pump start
+	sleep(NEXT_START_DELAY);
 	return(0);
 }
 
@@ -279,14 +282,14 @@ int start_hotwater_run()
 	pump_working=0;
 	do
 	{
-		sleep(10);
+		sleep(LOOP_DELAY);
 		if ( get_temperature(t_pump_output, &temp) != 0)
 		{	
 			logging("Get_temperature failed:", t_pump_output, 0);
 			gpio_setup();
 			exit(-1);
 		}
-		if ( pump_working == 2)
+		if ( pump_working == STARTUP_LOOPS)
 		{
 			pump_temp=temp;
 			if (get_temperature(t_hotwater, &temp) != 0)
@@ -320,7 +323,16 @@ int start_hotwater_run()
 		}
 	}
 	while ( temp < pump_max_output );
+	// Done shut down
+	pwmWrite(1,5);
+	pwmWrite(23,5);
+	sleep(5);
+	// Stop heatpump, reset valve
+	digitalWrite(heatpump_pin,0);
+	digitalWrite(valve_pin, 0);
 	logging("Hot water run", "Hotwater is at pump max temp, done", 0);
+	// Delay until next acceptable pump start
+	sleep(NEXT_START_DELAY);
 	return(0);
 }
 
@@ -476,6 +488,6 @@ int main(int argc, char *argv[] )
 			continue;
 		}
 		printf("Not cold and no hot water\n");
-		sleep(10);
+		sleep(LOOP_DELAY);
 	}
 }

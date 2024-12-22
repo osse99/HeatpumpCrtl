@@ -110,11 +110,11 @@ void sigint_handler(int signal)
                 printf("\nIntercepted SIGHUP!\n");
         if (signal == SIGTERM)
                 printf("\nIntercepted SIGTERM!\n");
+	logging("Terminated", "Process terminated by signal", 0);
 	if ( logfile != NULL )
 		fclose(logfile);
 	// Shut down pumps and valve
 	gpio_setup();
-	logging("Terminated", "Process terminated by signal", 0);
         exit(1);
 }
 
