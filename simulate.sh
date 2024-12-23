@@ -71,3 +71,61 @@ set_temp ${PUMP_OUTPUT} 20000
 set_temp ${INDOOR} 20000
 
 current_temps
+echo "Start pump_controller"
+sleep 20
+
+echo "Test 1 Heat and hot water needed"
+echo "Setting Return from floor and hot water to below heat needed theshold"
+set_temp ${RETURN_FROM_FLOOR} 18000
+set_temp ${HOTWATER} 37000
+current_temps
+echo "Waiting 60s"
+sleep 60
+echo "Setting pump output higher than out to floor"
+set_temp PUMP_OUTPUT 28000
+current_temps
+echo "Waiting 120s to allow pump output hotter than output to floor validation to complete"
+sleep 120
+echo "Setting Output_to_floor above max"
+set_temp ${OUTPUT_TO_FLOOR} 30250
+current_temps
+echo "Waiting 60s"
+sleep 60
+echo "Setting pump output above max"
+set_temp ${PUMP_OUTPUT} 51000
+current_temps
+echo "done"
+
+
+echo "Wait longer than pump restart delay, 1850 seconds "
+sleep 1850
+
+
+echo "Test 2 Only hot water needed"
+echo "Setting hot water to below heat needed theshold"
+set_temp ${HOTWATER} 37000
+current_temps
+echo "Waiting 60s"
+sleep 60
+echo "Setting pump output higher Hotwater"
+set_temp PUMP_OUTPUT 38000
+current_temps
+echo "Waiting 120s to allow pump output hotter than hotwater validation to complete"
+sleep 120
+echo "Setting pump output above max"
+set_temp ${PUMP_OUTPUT} 51000
+current_temps
+echo "done"
+
+
+echo "Wait longer than pump restart delay, 1850 seconds "
+sleep 1850
+
+
+echo "Test 3 Heat and hot water needed but pump never starts up"
+echo "Setting Return from floor and hot water to below heat needed theshold"
+set_temp ${RETURN_FROM_FLOOR} 18000
+set_temp ${HOTWATER} 37000
+current_temps
+sleep 240
+echo "done"
