@@ -22,4 +22,8 @@ o NIBE F2026 ari/water heat pump
 0 Grundfos UPM PWM controlled cisculation pumps
 0 Myson MSDV322 switch valve
 o 80 liters hot water boiler
-o NIBE electric boiler
+o NIBE EVC 13 electric boiler
+o RPi 3b
+o CMOS 4049 Hex buffer
+o Opto isolated 2 channel relay card
+
