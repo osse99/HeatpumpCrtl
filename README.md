@@ -8,7 +8,7 @@ Heatpump controller for RaspberryPi
 * * Hot water tank - until max heat pump temperature
 
 ## Guardrails
-* If pump does not provide any heat within x minutes abort
+* If pump does not provide any heat within X minutes abort
 * If pump is running for longer than Z minutes abort
 
 

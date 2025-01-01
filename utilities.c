@@ -20,7 +20,8 @@
 
 FILE *logfile;
 extern char logfile_path[];
-
+extern int verbose;
+extern int simulate;
 extern char t_outdoor[], t_output_to_floor[], t_return_from_floor[], t_hotwater[], t_pump_output[], t_indoor[];
 
 int gpio_setup();
@@ -29,7 +30,7 @@ int writelog( const char * message)
 {
 	if (logfile == NULL)
 	{
-		if (DEBUG)
+		if (verbose)
 			printf("Open logfile\n");
 		logfile = fopen(logfile_path, "a");
 		if ( logfile == NULL)
@@ -72,7 +73,7 @@ int get_temperature(char *sensor, float *ret_temp)
 	char *temp;
 
 
-	if ( SIMULATE == 1 )
+	if ( simulate )
 	{
 		sprintf(path, "/tmp/simulate/%s", sensor);
 	} else {
@@ -96,7 +97,7 @@ int get_temperature(char *sensor, float *ret_temp)
 	sscanf(temp,"t=%s",temp);
 	// atof: changes string to float.
 	*ret_temp = atof(temp)/1000;
-	// if (DEBUG)
+	// if (verbose)
 	//        printf(" temp : %3.3f °C\n", *ret_temp);
 	close(fd);
 

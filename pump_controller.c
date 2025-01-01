@@ -19,8 +19,8 @@
 #endif
 
 // Pump max running time/loops/start delay
-#define MAX_PUMP_RUNNING 240
 #define LOOP_DELAY 30
+#define MAX_PUMP_RUNNING 240
 #define NEXT_START_DELAY 1800
 #define STARTUP_LOOPS 3
 
@@ -47,7 +47,10 @@ int m_value=22;
 double k_value=0.2;
 
 // Other
-char logfile_path[]="/tmp/olle.log";
+char logfile_path[256];
+
+int verbose=0;
+int simulate=0;
 
 // Read the configuration file and override compile time defaults
 //
@@ -188,7 +191,7 @@ int start_heat_run()
 	do
 	{
 		sleep(LOOP_DELAY);
-		if (DEBUG)
+		if (verbose)
 		{
 			debug_temperature();
 		}
@@ -207,7 +210,7 @@ int start_heat_run()
 				gpio_setup();
 				exit(-1);
 			}
-			if ( DEBUG )
+			if ( verbose )
 			{
 				printf("Heat run, check that pump is working temp: %3.3f floor_temp: %3.3f\n", temp, floor_temp);
 			}
@@ -226,7 +229,7 @@ int start_heat_run()
 			exit(-1);
 		}
 		pump_working++;
-		if ( DEBUG )
+		if ( verbose )
 		{
 			printf("Heat run, temp: %3.3f\n", temp);
 		}
@@ -238,7 +241,7 @@ int start_heat_run()
 	do
 	{
 		sleep(LOOP_DELAY);
-		if (DEBUG)
+		if (verbose)
 		{
 			debug_temperature();
 		}
@@ -254,20 +257,20 @@ int start_heat_run()
 			gpio_setup();
 			exit(-1);
 		}
-		if ( DEBUG )
+		if ( verbose )
 		{
 			printf("Heat run, hotwater, temp: %3.3f\n", temp);
 		}
 		pump_working++;
 	}
 	while ( temp < pump_max_output );
-	// Done shut down
-	pwmWrite(1,5);
-	pwmWrite(23,5);
-	sleep(5);
 	// Stop heatpump, reset valve
 	digitalWrite(heatpump_pin,0);
 	digitalWrite(valve_pin, 0);
+	sleep(5);
+	// Done shut down
+	pwmWrite(1,5);
+	pwmWrite(23,5);
 	logging("Heat run", "Hotwater is at pump max temp, done", 0);
 	// Delay until next acceptable pump start
 	sleep(NEXT_START_DELAY);
@@ -291,7 +294,7 @@ int start_hotwater_run()
 	do
 	{
 		sleep(LOOP_DELAY);
-		if (DEBUG)
+		if (verbose)
 		{
 			debug_temperature();
 		}
@@ -310,7 +313,7 @@ int start_hotwater_run()
 				gpio_setup();
 				exit(-1);
 			}
-			if ( DEBUG )
+			if ( verbose )
 			{
 				printf("Hotwater, verify that pump is working temp: %3.3f hotwater_temp: %3.3f\n", pump_temp, temp);
 			}
@@ -329,19 +332,19 @@ int start_hotwater_run()
 			exit(-1);
 		}
 		pump_working++;
-		if ( DEBUG )
+		if ( verbose )
 		{
 			printf("Hotwater run, temp: %3.3f\n", temp);
 		}
 	}
 	while ( temp < pump_max_output );
-	// Done shut down
-	pwmWrite(1,5);
-	pwmWrite(23,5);
-	sleep(5);
 	// Stop heatpump, reset valve
 	digitalWrite(heatpump_pin,0);
 	digitalWrite(valve_pin, 0);
+	sleep(5);
+	// Done shut down
+	pwmWrite(1,5);
+	pwmWrite(23,5);
 	logging("Hot water run", "Hotwater is at pump max temp, done", 0);
 	// Delay until next acceptable pump start
 	sleep(NEXT_START_DELAY);
@@ -364,7 +367,7 @@ int to_cold()
 	float temp;
 
 	get_temperature(t_outdoor, &temp);
-	if ( DEBUG )
+	if ( verbose )
 	{
 		printf("in To cold, temp: %3.3f\n", temp);
 	}
@@ -383,7 +386,7 @@ int hot_water()
 	float temp;
 
 	get_temperature(t_hotwater, &temp);
-	if ( DEBUG )
+	if ( verbose )
 	{
 		printf("Hot water, temp: %3.3f\n", temp);
 	}
@@ -401,30 +404,30 @@ int heat()
 	float current_temp, outdoor_temp, target_temp;
 
 	get_temperature(t_return_from_floor, &current_temp);
-	if ( DEBUG )
+	if ( verbose )
 	{
 		printf("Floor water, temp: %3.3f\n", current_temp);
 	}
 	get_temperature(t_outdoor, &outdoor_temp);
-	if ( DEBUG )
+	if ( verbose )
 	{
 		printf("Outdoor, temp: %3.3f\n", outdoor_temp);
 	}
 	calculate_target_temp(&outdoor_temp, &target_temp);
-	if ( DEBUG )
+	if ( verbose )
 	{
 		printf("Target temp: %3.3f\n", target_temp);
 	}
 	if ( current_temp < target_temp )
 	{
 		logging("Heat", "Heat needed", 0);
-		if ( DEBUG )
+		if ( verbose )
 		{
 			printf("Heat needed\n");
 		}
 		return(1);
 	}
-	if ( DEBUG )
+	if ( verbose )
 	{
 		printf("No heat needed\n");
 	}
@@ -436,19 +439,44 @@ int main(int argc, char *argv[] )
 	int daemon=0;
 	int opt;
 	char *konffile = "pump_controller.cfg";
+	char *logfile;
 
-	while ((opt = getopt(argc, argv, "a:r:c:dp:f:b:e:k:h")) != -1) {
+	while ((opt = getopt(argc, argv, "df:l:svh")) != -1) {
 		switch(opt) {
 			case 'd' : daemon = 1; break;
 			case 'f' : konffile = optarg ; break;
-			case 'h' : printf("Usage: %s\n%s\n%s\n%s\n",\
+			case 'l' : logfile = optarg ; break;
+			case 's' : simulate = 1; break;
+			case 'v' : verbose = 1; break;
+			case 'h' : printf("Usage: %s\n%s\n%s\n%s\n%s\n",\
 						   "-d daemonize", 
 						   "-f konfigfile",
+						   "-l logfile",
 						   "-v verbose",
 						   "-h help");
 				   exit(0);
-			default:   printf("Unknown aargument, -h for help\n"); return(1);
+			default:   fprintf(stderr, "%s: Unknown aargument, -h for help\n", argv[0]); exit(-1);
 		}
+	}
+	// The combination of -d and -v is invalid
+	if ( daemon && verbose )
+	{
+		fprintf(stderr, "%s: Verbose mode does not work when running as a daemon\n", argv[0]);
+		exit(-1);
+	}
+
+	// No logfile argument so set a default
+	if ( strlen(logfile) == 0)
+	{
+		snprintf(logfile_path, sizeof(logfile_path), "/tmp/%s.log", argv[0]);
+	}
+	else
+	{
+		strncpy(logfile_path, logfile, sizeof(logfile_path));
+	}
+	if ( simulate )
+	{
+		fprintf(stderr, "%s: Simulation mode selected, reading temperatures from /tmp/simulate directory\n", argv[0]);
 	}
 
 	/* Read the config file if it exists */
@@ -485,7 +513,7 @@ int main(int argc, char *argv[] )
 	while (1)
 	{
 		sleep(1);
-		if (DEBUG)
+		if (verbose)
 		{
 			debug_temperature();
 		}
