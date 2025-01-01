@@ -71,6 +71,8 @@ int get_temperature(char *sensor, float *ret_temp)
 	char path[100];
 	int fd =-1;
 	char *temp;
+	char *endptr;
+	float reading;
 
 
 	if ( simulate )
@@ -95,8 +97,14 @@ int get_temperature(char *sensor, float *ret_temp)
 	temp = strchr(buf,'t');
 	// Read the string following "t=".
 	sscanf(temp,"t=%s",temp);
-	// atof: changes string to float.
-	*ret_temp = atof(temp)/1000;
+	// strof: changes string to float.
+	reading = strtof(temp, &endptr);
+	if ( *endptr != '\0' )
+	{
+		perror("can't convert temp string to float");
+		return(1);
+	}
+	*ret_temp = reading/1000;
 	// if (verbose)
 	//        printf(" temp : %3.3f °C\n", *ret_temp);
 	close(fd);
