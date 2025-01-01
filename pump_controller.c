@@ -24,7 +24,7 @@
 #define NEXT_START_DELAY 1800
 #define STARTUP_LOOPS 3
 
-// Temperature probe MAC address mappings
+// Temperature probe MAC address mappings, stupid but just to have something to start with
 char t_outdoor[]="w1_bus_master1/28-00000b5c6f2a";
 char t_output_to_floor[]="w1_bus_master1/28-00000b5450f9";
 char t_return_from_floor[]="w1_bus_master1/28-000009ff2514";
