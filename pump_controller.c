@@ -19,10 +19,10 @@
 #endif
 
 // Pump max running time/loops/start delay
-#define LOOP_DELAY 30
-#define MAX_PUMP_RUNNING 240
-#define NEXT_START_DELAY 1800
-#define STARTUP_LOOPS 3
+int loop_delay=30;
+int max_pump_running_time=240;
+int next_start_delay=1800;
+int startup_loops=3;
 
 // Temperature probe MAC address mappings, stupid but just to have something to start with
 char t_outdoor[]="w1_bus_master1/28-00000b5c6f2a";
@@ -49,11 +49,43 @@ double k_value=0.2;
 // Other
 char logfile_path[256];
 
+typedef struct {
+	const char *key;
+	void *target;
+	char type; // 's' for string, 'i' for int, 'f' for float
+} ConfigMap;
+
+// String mappings
+ConfigMap mappings[] = {
+	{"OUTDOOR", t_outdoor, 's'},
+	{"OUTPUT_TO_FLOOR", t_output_to_floor, 's'},
+	{"RETURN_FROM_FLOOR", t_return_from_floor, 's'},
+	{"HOT_WATER", t_hotwater, 's'},
+	{"PUMP_OUTPUT", t_pump_output, 's'},
+	{"INDOOR", t_indoor, 's'},
+	{"VALVE_PIN", &valve_pin, 'i'},
+	{"HEATPUMP_PIN", &heatpump_pin, 'i'},
+	{"MAX_FLOOR_OUTPUT", &max_floor_output, 'i'},
+	{"PUMP_MAX_OUTPUT", &pump_max_output, 'i'},
+	{"MIN_TEMP_HOTWATER", &min_t_hotwater, 'i'},
+	{"MIN_OUTDOOR", &min_t_outdoor, 'i'},
+	{"M_VALUE", &m_value, 'i'},
+	{"K_VALUE", &k_value, 'f'},
+	{"LOGFILE", logfile_path, 's'},
+	{"LOOP_DELAY", &loop_delay, 'i'},
+	{"MAX_PUMP_RUNNING_TIME", &max_pump_running_time, 'i'},
+	{"NEXT_START_DELAY", &next_start_delay, 'i'},
+	{"STARTUP_LOOPS", &startup_loops, 'i'},
+	{NULL, NULL, 0} // End marker
+};
+
+
 int verbose=0;
 int simulate=0;
 
 // Read the configuration file and override compile time defaults
 //
+
 void read_config(char *konffile)
 {
 	config_t cfg;
@@ -73,72 +105,39 @@ void read_config(char *konffile)
 			config_destroy(&cfg);
 		} else {
 			// Temp sensor MAC adresses
-			if ( config_lookup_string(&cfg, "OUTDOOR", &str) ) {
-				printf("OUTDOOR: %s\n", str);
-				strcpy(t_outdoor, str);
-			}
-			if ( config_lookup_string(&cfg, "OUTPUT_TO_FLOOR", &str) ) {
-				printf("OUT_TO_FLOOR: %s\n", str);
-				strcpy(t_output_to_floor, str);
-			}
-			if ( config_lookup_string(&cfg, "RETURN_FROM_FLOOR", &str) ) {
-				printf("RETURN_FROM_FLOOR: %s\n", str);
-				strcpy(t_return_from_floor, str);
-			}
-			if ( config_lookup_string(&cfg, "HOT_WATER", &str) ) {
-				printf("HOT_WATER: %s\n", str);
-				strcpy(t_hotwater, str);
-			}
-			if ( config_lookup_string(&cfg, "PUMP_OUTPUT", &str) ) {
-				printf("PUMP_OUTPUT: %s\n", str);
-				strcpy(t_pump_output, str);
-			}
-			if ( config_lookup_string(&cfg, "INDOOR", &str) ) {
-				printf("INDOOR: %s\n", str);
-				strcpy(t_indoor, str);
-			}
+			for (ConfigMap *map = mappings; map->key != NULL; ++map)
+			{
+				switch (map->type)
+				{
+					case 's':
+						if (config_lookup_string(&cfg, map->key, &str))
+						{
+							printf("%s: %s\n", map->key, str);
+							strcpy((char *)map->target, str);
+						}
+						break;
+					case 'f':
+						if (  config_lookup_float(&cfg, map->key, (double *)map->target) )
+						{
+							printf("%s: %3.3f\n", map->key, *(double *)map->target);
+						}
+						break;
+					case 'i':
+						if (  config_lookup_int(&cfg, map->key, (int *)map->target) )
+						{
+							printf("%s: %d\n", map->key, *(int *)map->target);
+						}
+						break;
 
-			// GPIO stuff
-			if (  config_lookup_int(&cfg, "VALVEPIN", &valve_pin) ) {
-				printf("VALVEPIN: %d\n", valve_pin);
+				}
 			}
-			if (  config_lookup_int(&cfg, "HEATPUMP_PIN", &heatpump_pin) ) {
-				printf("HEATPUMP_PIN: %d\n", heatpump_pin);
-			}
-
-			// Temperatures
-			if (  config_lookup_int(&cfg, "MAX_FLOOR_OUTPUT", &max_floor_output) ) {
-				printf("MAX_FLOOR_OUTPUT: %d\n", max_floor_output);
-			}
-			if (  config_lookup_int(&cfg, "PUMP_MAX_OUTPUT", &pump_max_output) ) {
-				printf("PUMP_MAX_OUTPUT: %d\n", pump_max_output);
-			}
-			if (  config_lookup_int(&cfg, "MIN_TEMP_HOTWATER", &min_t_hotwater) ) {
-				printf("MIN_TEMP_HOTWATER: %d\n", min_t_hotwater);
-			}
-			if (  config_lookup_int(&cfg, "MIN_OUTDOOR", &min_t_outdoor) ) {
-				printf("MIN_OUTDOOR: %d\n", min_t_outdoor);
-			}
-
-			// Traget temperature calculation
-			if (  config_lookup_int(&cfg, "M_VALUE", &m_value) ) {
-				printf("M_VALUE: %d\n", m_value);
-			}
-			if (  config_lookup_float(&cfg, "K_VALUE", &k_value) ) {
-				printf("K_VALUE: %3.3f\n", k_value);
-			}
-			// Other
-			if ( config_lookup_string(&cfg, "LOGFILE", &str) ) {
-				printf("LOGFILE: %s\n", str);
-				strcpy(logfile_path, str);
-			}
-
-
 		}
+
 	} else {
-		logging("Readconfig", "No config file exist, skipping and using defaults and args only", 0);
+		fprintf(stderr, "No config file exist, skipping and using defaults and args only");
 	}
-}	
+}
+
 
 // Set up RaspberryPi ports WiringPi
 // Can also be called at program end to shut down pumps and valves
@@ -173,6 +172,22 @@ int gpio_setup()
 	return(0);
 }
 
+int log_quit(const char* tag, const char* message, int err)
+{
+	logging( tag, message, err);
+	gpio_setup();
+	exit(-1);
+}
+
+void print_verbose(char *msg)
+{
+	if (verbose)
+	{
+		printf("%s\n", msg);
+		debug_temperature();
+	}
+}
+
 // Run to max floor temp and max hotwater temp
 int start_heat_run()
 {
@@ -190,49 +205,32 @@ int start_heat_run()
 	pump_working=0;
 	do
 	{
-		sleep(LOOP_DELAY);
-		if (verbose)
-		{
-			debug_temperature();
-		}
+		sleep(loop_delay);
+		print_verbose("Start heat run");
 		if ( get_temperature(t_output_to_floor, &temp) != 0)
 		{	
-			logging("Get_temperature failed:", t_output_to_floor, 0);
-			gpio_setup();
-			exit(-1);
+			log_quit("Get_temperature failed:", t_output_to_floor, 0);
 		}
-		if ( pump_working == STARTUP_LOOPS)
+		if ( pump_working == startup_loops)
 		{
 			floor_temp=temp;
 			if (get_temperature(t_pump_output, &temp) != 0)
 			{	
-				logging("Get_temperature failed:", t_pump_output, 0);
-				gpio_setup();
-				exit(-1);
+				log_quit("Get_temperature failed:", t_pump_output, 0);
 			}
-			if ( verbose )
-			{
-				printf("Heat run, check that pump is working temp: %3.3f floor_temp: %3.3f\n", temp, floor_temp);
-			}
+			print_verbose("Heat run, checking that pump has started to produce heat");
 			if ( floor_temp > temp)
 			{
-				logging("Heat run", "No heat from pump after 3 cycles", 0);
-				gpio_setup();
-				exit(-1);
+				log_quit("Heat run", "No heat from pump after 3 cycles", 0);
 			}
 			temp=floor_temp;
 		}
-		if ( pump_working > MAX_PUMP_RUNNING )
+		if ( pump_working > max_pump_running_time )
 		{
-			logging("Heat run", "Pump running longer than MAX_PUMP_RUN, aborting", 0);
-			gpio_setup();
-			exit(-1);
+			log_quit("Heat run", "Pump running longer than MAX_PUMP_RUNNNING_TIME, aborting", 0);
 		}
 		pump_working++;
-		if ( verbose )
-		{
-			printf("Heat run, temp: %3.3f\n", temp);
-		}
+		print_verbose("Heat run loop");
 	}
 	while ( temp < max_floor_output );
 	logging("Heat run", "Floor is hot, switching to hotwater", 0);
@@ -240,27 +238,17 @@ int start_heat_run()
 	digitalWrite(valve_pin, 1);	
 	do
 	{
-		sleep(LOOP_DELAY);
-		if (verbose)
-		{
-			debug_temperature();
-		}
+		sleep(loop_delay);
+		print_verbose("Heat run, start hotwater");
 		if (get_temperature(t_pump_output, &temp) != 0)
 		{	
-			logging("Get_temperature failed:", t_pump_output, 0);
-			gpio_setup();
-			exit(-1);
+			log_quit("Get_temperature failed:", t_pump_output, 0);
 		}
-		if ( pump_working > MAX_PUMP_RUNNING )
+		if ( pump_working > max_pump_running_time )
 		{
-			logging("Heat run", "Pump running longer than MAX_PUMP_RUN, aborting", 0);
-			gpio_setup();
-			exit(-1);
+			log_quit("Heat run", "Pump running longer than MAX_PUMP_RUNNING_TIME, aborting", 0);
 		}
-		if ( verbose )
-		{
-			printf("Heat run, hotwater, temp: %3.3f\n", temp);
-		}
+		print_verbose("Heat run, hotwater loop");
 		pump_working++;
 	}
 	while ( temp < pump_max_output );
@@ -273,7 +261,7 @@ int start_heat_run()
 	pwmWrite(23,5);
 	logging("Heat run", "Hotwater is at pump max temp, done", 0);
 	// Delay until next acceptable pump start
-	sleep(NEXT_START_DELAY);
+	sleep(next_start_delay);
 	return(0);
 }
 
@@ -293,49 +281,32 @@ int start_hotwater_run()
 	pump_working=0;
 	do
 	{
-		sleep(LOOP_DELAY);
-		if (verbose)
-		{
-			debug_temperature();
-		}
+		sleep(loop_delay);
+		print_verbose("Hotwater run start");
 		if ( get_temperature(t_pump_output, &temp) != 0)
 		{	
-			logging("Get_temperature failed:", t_pump_output, 0);
-			gpio_setup();
-			exit(-1);
+			log_quit("Get_temperature failed:", t_pump_output, 0);
 		}
-		if ( pump_working == STARTUP_LOOPS)
+		if ( pump_working == startup_loops)
 		{
 			pump_temp=temp;
 			if (get_temperature(t_hotwater, &temp) != 0)
 			{	
-				logging("Get_temperature failed:", t_hotwater, 0);
-				gpio_setup();
-				exit(-1);
+				log_quit("Get_temperature failed:", t_hotwater, 0);
 			}
-			if ( verbose )
-			{
-				printf("Hotwater, verify that pump is working temp: %3.3f hotwater_temp: %3.3f\n", pump_temp, temp);
-			}
+			print_verbose("Hotwater, verifying that pump is producing heat");
 			if ( pump_temp < temp)
 			{
-				logging("Heat run", "No heat from pump after 3 cycles", 0);
-				gpio_setup();
-				exit(-1);
+				log_quit("Heat run", "No heat from pump after 3 cycles", 0);
 			}
 			temp=pump_temp;
 		}
-		if ( pump_working > MAX_PUMP_RUNNING )
+		if ( pump_working > max_pump_running_time )
 		{
-			logging("Hotwater run", "Pump running longer than MAX_PUMP_RUN, aborting", 0);
-			gpio_setup();
-			exit(-1);
+			log_quit("Hotwater run", "Pump running longer than MAX_PUMP_RUNNING_TIME, aborting", 0);
 		}
 		pump_working++;
-		if ( verbose )
-		{
-			printf("Hotwater run, temp: %3.3f\n", temp);
-		}
+		print_verbose("Hotwater loop");
 	}
 	while ( temp < pump_max_output );
 	// Stop heatpump, reset valve
@@ -347,7 +318,7 @@ int start_hotwater_run()
 	pwmWrite(23,5);
 	logging("Hot water run", "Hotwater is at pump max temp, done", 0);
 	// Delay until next acceptable pump start
-	sleep(NEXT_START_DELAY);
+	sleep(next_start_delay);
 	return(0);
 }
 
@@ -367,10 +338,7 @@ int to_cold()
 	float temp;
 
 	get_temperature(t_outdoor, &temp);
-	if ( verbose )
-	{
-		printf("in To cold, temp: %3.3f\n", temp);
-	}
+	print_verbose("in To cold");
 	if ( temp < min_t_outdoor )
 	{	
 		logging("To_cold", "Outdoor temperature to low", 0);
@@ -386,10 +354,7 @@ int hot_water()
 	float temp;
 
 	get_temperature(t_hotwater, &temp);
-	if ( verbose )
-	{
-		printf("Hot water, temp: %3.3f\n", temp);
-	}
+	print_verbose("in Hot water");
 	if ( temp <= min_t_hotwater )
 	{
 		return(1);
@@ -404,15 +369,8 @@ int heat()
 	float current_temp, outdoor_temp, target_temp;
 
 	get_temperature(t_return_from_floor, &current_temp);
-	if ( verbose )
-	{
-		printf("Floor water, temp: %3.3f\n", current_temp);
-	}
 	get_temperature(t_outdoor, &outdoor_temp);
-	if ( verbose )
-	{
-		printf("Outdoor, temp: %3.3f\n", outdoor_temp);
-	}
+	print_verbose("in heat, temperatures read");
 	calculate_target_temp(&outdoor_temp, &target_temp);
 	if ( verbose )
 	{
@@ -423,13 +381,13 @@ int heat()
 		logging("Heat", "Heat needed", 0);
 		if ( verbose )
 		{
-			printf("Heat needed\n");
+			printf("in heat: needed\n");
 		}
 		return(1);
 	}
 	if ( verbose )
 	{
-		printf("No heat needed\n");
+		printf("in heat: not needed\n");
 	}
 	return(0);
 }
@@ -513,10 +471,7 @@ int main(int argc, char *argv[] )
 	while (1)
 	{
 		sleep(1);
-		if (verbose)
-		{
-			debug_temperature();
-		}
+		print_verbose("in main loop");
 		if ( to_cold() == 1)
 		{
 			continue;
@@ -532,6 +487,6 @@ int main(int argc, char *argv[] )
 			continue;
 		}
 		printf("Not cold and no hot water\n");
-		sleep(LOOP_DELAY);
+		sleep(loop_delay);
 	}
 }
