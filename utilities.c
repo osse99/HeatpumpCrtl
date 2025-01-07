@@ -21,6 +21,7 @@
 FILE *logfile;
 extern char logfile_path[];
 extern int verbose;
+extern int verbose_temp;
 extern int simulate;
 extern char t_outdoor[], t_output_to_floor[], t_return_from_floor[], t_hotwater[], t_pump_output[], t_indoor[];
 
@@ -64,6 +65,8 @@ int logging(const char* tag, const char* message, int err) {
 	return(writelog(logmessage));
 
 }
+
+
 
 int get_temperature(char *sensor, float *ret_temp)
 {
@@ -136,6 +139,26 @@ void debug_temperature()
 
 	get_temperature(t_indoor, &temp);
 	printf("t_indoor\t\t%s\t%3.3f\n", t_indoor, temp);
+}
+
+int log_quit(const char* tag, const char* message, int err)
+{
+        logging( tag, message, err);
+        gpio_setup();
+        exit(-1);
+}
+
+void print_verbose(char *msg)
+{
+        if (verbose)
+        {
+                printf("%s\n", msg);
+        }
+        if (verbose_temp)
+        {
+                printf("%s\n", msg);
+                debug_temperature();
+        }
 }
 
 

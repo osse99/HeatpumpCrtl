@@ -1,7 +1,6 @@
 TARGET = pump_controller
 LIBS = -lwiringPi -lconfig
 CC = gcc
-# CFLAGS = -g -Wall -D DEBUG=1 -D SIMULATE=1
 CFLAGS = -g -Wall
 
 .PHONY: default all clean

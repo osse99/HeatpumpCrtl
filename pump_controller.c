@@ -14,9 +14,12 @@
 #include <sys/stat.h>
 #include "utilities.h"
 
-#ifndef DEBUG
-#define DEBUG 0
-#endif
+// WiringPi hardware pwm pins
+#define PWMPIN1 1
+#define PWMPIN2 23
+#define PWMOFF 5
+#define PWM_RANGE 192
+#define PWM_CLOCK 200
 
 // Pump max running time/loops/start delay
 int loop_delay=30;
@@ -35,6 +38,8 @@ char t_indoor[]="w1_bus_master2/28-00000039122b";
 // WiringPi GPIO pins
 int valve_pin=25;
 int heatpump_pin=28;
+int pwmspeed1=120;
+int pwmspeed2=120;
 
 // Temperature settings
 int max_floor_output=29;
@@ -49,13 +54,15 @@ double k_value=0.2;
 // Other
 char logfile_path[256];
 
+
+// Token in config file, pointer to variable, variable type (string, int, float)
 typedef struct {
 	const char *key;
 	void *target;
 	char type; // 's' for string, 'i' for int, 'f' for float
 } ConfigMap;
 
-// String mappings
+// Configurable variable mappings
 ConfigMap mappings[] = {
 	{"OUTDOOR", t_outdoor, 's'},
 	{"OUTPUT_TO_FLOOR", t_output_to_floor, 's'},
@@ -75,18 +82,21 @@ ConfigMap mappings[] = {
 	{"LOOP_DELAY", &loop_delay, 'i'},
 	{"MAX_PUMP_RUNNING_TIME", &max_pump_running_time, 'i'},
 	{"NEXT_START_DELAY", &next_start_delay, 'i'},
+	{"PWM_SPEED_1", &pwmspeed1, 'i'},
+	{"PWM_SPEED_2", &pwmspeed2, 'i'},
 	{"STARTUP_LOOPS", &startup_loops, 'i'},
 	{NULL, NULL, 0} // End marker
 };
 
 
 int verbose=0;
+int verbose_temp=0;
 int simulate=0;
 
 // Read the configuration file and override compile time defaults
 //
 
-void read_config(char *konffile)
+void read_config(char *conffile)
 {
 	config_t cfg;
 	const char *str;
@@ -94,11 +104,11 @@ void read_config(char *konffile)
 
 	/* Read the config file if it exists */
 	/* Override defaults (compiled) */
-	result=access(konffile, F_OK);
+	result=access(conffile, R_OK);
 	if (result == 0)
 	{
 		config_init(&cfg);
-		if(! config_read_file(&cfg, konffile))
+		if(! config_read_file(&cfg, conffile))
 		{
 			fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg),
 					config_error_line(&cfg), config_error_text(&cfg));
@@ -152,14 +162,14 @@ int gpio_setup()
 	// Tank circulation pump on PWM 1
 	// Heat pump circulation pump on PWM 23
 	// PWM 0 and 1 (pin 1, 23) 500Hz range 1-200
-	pinMode(1,PWM_OUTPUT);
-	pinMode(23,PWM_OUTPUT);
+	pinMode(PWMPIN1,PWM_OUTPUT);
+	pinMode(PWMPIN2,PWM_OUTPUT);
 	pwmSetMode(PWM_MODE_MS);
-	pwmSetClock(192);
-	pwmSetRange (200) ;
+	pwmSetClock(PWM_CLOCK);
+	pwmSetRange (PWM_RANGE) ;
 	// Stop both pumps
-	pwmWrite(1, 5);
-	pwmWrite(23, 5);
+	pwmWrite(PWMPIN1, PWMOFF);
+	pwmWrite(PWMPIN2, PWMOFF);
 
 	// Switch valve relay
 	// between heat production (off) and hotwater (on)
@@ -172,22 +182,6 @@ int gpio_setup()
 	return(0);
 }
 
-int log_quit(const char* tag, const char* message, int err)
-{
-	logging( tag, message, err);
-	gpio_setup();
-	exit(-1);
-}
-
-void print_verbose(char *msg)
-{
-	if (verbose)
-	{
-		printf("%s\n", msg);
-		debug_temperature();
-	}
-}
-
 // Run to max floor temp and max hotwater temp
 int start_heat_run()
 {
@@ -196,8 +190,8 @@ int start_heat_run()
 
 	logging("Heat run", "Starting to heat floor", 0);
 	// Start circulation
-	pwmWrite(1,120);
-	pwmWrite(23,120);
+	pwmWrite(PWMPIN1,pwmspeed1);
+	pwmWrite(PWMPIN2,pwmspeed2);
 	sleep(5);
 	// Start heatpump
 	digitalWrite(heatpump_pin,1);
@@ -257,8 +251,8 @@ int start_heat_run()
 	digitalWrite(valve_pin, 0);
 	sleep(5);
 	// Done shut down
-	pwmWrite(1,5);
-	pwmWrite(23,5);
+	pwmWrite(PWMPIN1,PWMOFF);
+	pwmWrite(PWMPIN2,PWMOFF);
 	logging("Heat run", "Hotwater is at pump max temp, done", 0);
 	// Delay until next acceptable pump start
 	sleep(next_start_delay);
@@ -273,8 +267,8 @@ int start_hotwater_run()
 
 	logging("Hotwater run", "Starting to heat water", 0);
 	// Start circulation
-	pwmWrite(1,120);
-	pwmWrite(23,120);
+	pwmWrite(PWMPIN1,pwmspeed1);
+	pwmWrite(PWMPIN2,pwmspeed2);
 	digitalWrite(valve_pin, 1);	
 	sleep(5);
 	digitalWrite(heatpump_pin,1);
@@ -314,9 +308,9 @@ int start_hotwater_run()
 	digitalWrite(valve_pin, 0);
 	sleep(5);
 	// Done shut down
-	pwmWrite(1,5);
-	pwmWrite(23,5);
-	logging("Hot water run", "Hotwater is at pump max temp, done", 0);
+	pwmWrite(PWMPIN1,PWMOFF);
+	pwmWrite(PWMPIN2,PWMOFF);
+	logging("Hot water run", "Hotwater is at pump max temp setting, done", 0);
 	// Delay until next acceptable pump start
 	sleep(next_start_delay);
 	return(0);
@@ -326,7 +320,6 @@ int start_hotwater_run()
 int calculate_target_temp(float *outdoor_temp, float *ret_temp)
 {
 
-	// *outdoor_temp=-10;
 	// Y=KX+M inverted
 	*ret_temp=m_value - k_value * *outdoor_temp;
 	return(0);	
@@ -396,21 +389,23 @@ int main(int argc, char *argv[] )
 {
 	int daemon=0;
 	int opt;
-	char *konffile = "pump_controller.cfg";
+	char *conffile = "pump_controller.cfg";
 	char *logfile;
 
-	while ((opt = getopt(argc, argv, "df:l:svh")) != -1) {
+	while ((opt = getopt(argc, argv, "df:l:stvh")) != -1) {
 		switch(opt) {
 			case 'd' : daemon = 1; break;
-			case 'f' : konffile = optarg ; break;
+			case 'f' : conffile = optarg ; break;
 			case 'l' : logfile = optarg ; break;
 			case 's' : simulate = 1; break;
 			case 'v' : verbose = 1; break;
-			case 'h' : printf("Usage: %s\n%s\n%s\n%s\n%s\n",\
+			case 't' : verbose_temp = 1; break;
+			case 'h' : printf("Usage: %s\n%s\n%s\n%s\n%s\n%s\n",\
 						   "-d daemonize", 
-						   "-f konfigfile",
+						   "-f configfile",
 						   "-l logfile",
 						   "-v verbose",
+						   "-t verbose with temp sensor values",
 						   "-h help");
 				   exit(0);
 			default:   fprintf(stderr, "%s: Unknown aargument, -h for help\n", argv[0]); exit(-1);
@@ -439,7 +434,7 @@ int main(int argc, char *argv[] )
 
 	/* Read the config file if it exists */
 	/* Override defaults from compile time */
-	read_config(konffile);
+	read_config(conffile);
 
 	// Catch signals
 	// Stop pumps and reset switch valve
