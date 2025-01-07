@@ -123,7 +123,11 @@ void read_config(char *conffile)
 						if (config_lookup_string(&cfg, map->key, &str))
 						{
 							printf("%s: %s\n", map->key, str);
-							strcpy((char *)map->target, str);
+							strncpy((char *)map->target, str, strlen((char *)map->target));
+							if (strlen(str) > strlen(map->target))
+							{
+								fprintf(stderr, "Warning: %s is to long and will be truncated. str: %s truncated: %s\n", map->key, str, (char *)map->target);
+							}
 						}
 						break;
 					case 'f':
@@ -330,7 +334,11 @@ int to_cold()
 {
 	float temp;
 
-	get_temperature(t_outdoor, &temp);
+	if (get_temperature(t_outdoor, &temp))
+	{	
+		log_quit("Get_temperature failed:", t_outdoor, 0);
+	}
+	
 	print_verbose("in To cold");
 	if ( temp < min_t_outdoor )
 	{	
@@ -346,7 +354,10 @@ int hot_water()
 {
 	float temp;
 
-	get_temperature(t_hotwater, &temp);
+	if (get_temperature(t_hotwater, &temp))
+	{	
+		log_quit("Get_temperature failed:", t_hotwater, 0);
+	}
 	print_verbose("in Hot water");
 	if ( temp <= min_t_hotwater )
 	{
@@ -361,8 +372,14 @@ int heat()
 {
 	float current_temp, outdoor_temp, target_temp;
 
-	get_temperature(t_return_from_floor, &current_temp);
-	get_temperature(t_outdoor, &outdoor_temp);
+	if (get_temperature(t_return_from_floor, &current_temp))
+	{	
+		log_quit("Get_temperature failed:", t_return_from_floor, 0);
+	}
+	if (get_temperature(t_outdoor, &outdoor_temp))
+	{	
+		log_quit("Get_temperature failed:", t_outdoor, 0);
+	}
 	print_verbose("in heat, temperatures read");
 	calculate_target_temp(&outdoor_temp, &target_temp);
 	if ( verbose )
