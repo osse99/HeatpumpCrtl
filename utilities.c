@@ -131,9 +131,6 @@ void debug_temperature()
 	get_temperature(t_hotwater, &temp);
 	printf("t_hotwater\t\t%s\t%3.3f\n", t_hotwater, temp);
 
-	get_temperature(t_outdoor, &temp);
-	printf("t_outdoor\t\t%s\t%3.3f\n", t_outdoor, temp);
-
 	get_temperature(t_pump_output, &temp);
 	printf("t_pump_output\t\t%s\t%3.3f\n", t_pump_output, temp);
 

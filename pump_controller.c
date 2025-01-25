@@ -14,6 +14,8 @@
 #include <sys/stat.h>
 #include "utilities.h"
 
+#define MAXSTRING 256
+
 // WiringPi hardware pwm pins
 #define PWMPIN1 1
 #define PWMPIN2 23
@@ -28,12 +30,12 @@ int next_start_delay=1800;
 int startup_loops=3;
 
 // Temperature probe MAC address mappings, stupid but just to have something to start with
-char t_outdoor[]="w1_bus_master1/28-00000b5c6f2a";
-char t_output_to_floor[]="w1_bus_master1/28-00000b5450f9";
-char t_return_from_floor[]="w1_bus_master1/28-000009ff2514";
-char t_hotwater[]="w1_bus_master2/28-000000384a6d";
-char t_pump_output[]="w1_bus_master1/28-00000b5b88a3";
-char t_indoor[]="w1_bus_master2/28-00000039122b";
+char t_outdoor[MAXSTRING]="w1_bus_master1/28-00000b5c6f2a";
+char t_output_to_floor[MAXSTRING]="w1_bus_master1/28-00000b5450f9";
+char t_return_from_floor[MAXSTRING]="w1_bus_master1/28-000009ff2514";
+char t_hotwater[MAXSTRING]="w1_bus_master2/28-000000384a6d";
+char t_pump_output[MAXSTRING]="w1_bus_master1/28-00000b5b88a3";
+char t_indoor[MAXSTRING]="w1_bus_master2/28-00000039122b";
 
 // WiringPi GPIO pins
 int valve_pin=25;
@@ -52,7 +54,7 @@ int m_value=22;
 double k_value=0.2;
 
 // Other
-char logfile_path[256];
+char logfile_path[MAXSTRING];
 
 
 // Token in config file, pointer to variable, variable type (string, int, float)
@@ -123,8 +125,8 @@ void read_config(char *conffile)
 						if (config_lookup_string(&cfg, map->key, &str))
 						{
 							printf("%s: %s\n", map->key, str);
-							strncpy((char *)map->target, str, strlen((char *)map->target));
-							if (strlen(str) > strlen(map->target))
+							strncpy((char *)map->target, str, MAXSTRING);
+							if (strlen(str) > MAXSTRING)
 							{
 								fprintf(stderr, "Warning: %s is to long and will be truncated. str: %s truncated: %s\n", map->key, str, (char *)map->target);
 							}
@@ -217,6 +219,11 @@ int start_heat_run()
 				log_quit("Get_temperature failed:", t_pump_output, 0);
 			}
 			print_verbose("Heat run, checking that pump has started to produce heat");
+			if ( verbose || verbose_temp )
+			{
+				printf("Floor temp: %3.3f Pump output: %3.3f\n", floor_temp, temp);
+				printf("t_output_to_floor: %s t_pump_output: %s\n", t_output_to_floor, t_pump_output);
+			}
 			if ( floor_temp > temp)
 			{
 				log_quit("Heat run", "No heat from pump after 3 cycles", 0);
@@ -228,9 +235,9 @@ int start_heat_run()
 			log_quit("Heat run", "Pump running longer than MAX_PUMP_RUNNNING_TIME, aborting", 0);
 		}
 		pump_working++;
-		print_verbose("Heat run loop");
 	}
 	while ( temp < max_floor_output );
+	print_verbose("Floor is hot, switching to hotwater");
 	logging("Heat run", "Floor is hot, switching to hotwater", 0);
 	// Start hot water production
 	digitalWrite(valve_pin, 1);	
@@ -246,10 +253,10 @@ int start_heat_run()
 		{
 			log_quit("Heat run", "Pump running longer than MAX_PUMP_RUNNING_TIME, aborting", 0);
 		}
-		print_verbose("Heat run, hotwater loop");
 		pump_working++;
 	}
 	while ( temp < pump_max_output );
+	print_verbose("Heat loop hotwater: pump_output > pump_max_output");
 	// Stop heatpump, reset valve
 	digitalWrite(heatpump_pin,0);
 	digitalWrite(valve_pin, 0);
@@ -258,6 +265,7 @@ int start_heat_run()
 	pwmWrite(PWMPIN1,PWMOFF);
 	pwmWrite(PWMPIN2,PWMOFF);
 	logging("Heat run", "Hotwater is at pump max temp, done", 0);
+	print_verbose("Hotwater is at pump max temp, done");
 	// Delay until next acceptable pump start
 	sleep(next_start_delay);
 	return(0);
@@ -280,7 +288,7 @@ int start_hotwater_run()
 	do
 	{
 		sleep(loop_delay);
-		print_verbose("Hotwater run start");
+		print_verbose("Hotwater run loop start");
 		if ( get_temperature(t_pump_output, &temp) != 0)
 		{	
 			log_quit("Get_temperature failed:", t_pump_output, 0);
@@ -304,9 +312,9 @@ int start_hotwater_run()
 			log_quit("Hotwater run", "Pump running longer than MAX_PUMP_RUNNING_TIME, aborting", 0);
 		}
 		pump_working++;
-		print_verbose("Hotwater loop");
 	}
 	while ( temp < pump_max_output );
+	print_verbose("hotwater loop: pump_output > pump_max_output");
 	// Stop heatpump, reset valve
 	digitalWrite(heatpump_pin,0);
 	digitalWrite(valve_pin, 0);
@@ -315,6 +323,7 @@ int start_hotwater_run()
 	pwmWrite(PWMPIN1,PWMOFF);
 	pwmWrite(PWMPIN2,PWMOFF);
 	logging("Hot water run", "Hotwater is at pump max temp setting, done", 0);
+	print_verbose("Hotwater is at pump max temp, done");
 	// Delay until next acceptable pump start
 	sleep(next_start_delay);
 	return(0);
@@ -363,7 +372,7 @@ int hot_water()
 	{
 		return(1);
 	}
-	logging("Hot_water", "Hot water temp to low", 0);
+	logging("Hot_water", "Hot water temp OK", 0);
 	return(0);
 }
 
@@ -382,20 +391,20 @@ int heat()
 	}
 	print_verbose("in heat, temperatures read");
 	calculate_target_temp(&outdoor_temp, &target_temp);
-	if ( verbose )
+	if ( verbose || verbose_temp )
 	{
 		printf("Target temp: %3.3f\n", target_temp);
 	}
 	if ( current_temp < target_temp )
 	{
 		logging("Heat", "Heat needed", 0);
-		if ( verbose )
+		if ( verbose || verbose_temp )
 		{
 			printf("in heat: needed\n");
 		}
 		return(1);
 	}
-	if ( verbose )
+	if ( verbose || verbose_temp )
 	{
 		printf("in heat: not needed\n");
 	}
@@ -429,7 +438,7 @@ int main(int argc, char *argv[] )
 		}
 	}
 	// The combination of -d and -v is invalid
-	if ( daemon && verbose )
+	if ( (daemon && verbose) || (daemon && verbose_temp) )
 	{
 		fprintf(stderr, "%s: Verbose mode does not work when running as a daemon\n", argv[0]);
 		exit(-1);
@@ -498,7 +507,10 @@ int main(int argc, char *argv[] )
 			start_hotwater_run();
 			continue;
 		}
-		printf("Not cold and no hot water\n");
+		if ( verbose || verbose_temp )
+		{
+			printf("Not cold and no hot water\n");
+		}
 		sleep(loop_delay);
 	}
 }

@@ -64,34 +64,40 @@ echo ${INDOOR}
 #
 # Baseline temperatures
 set_temp ${OUTDOOR} 0
-set_temp ${OUTPUT_TO_FLOOR} 20000
+set_temp ${OUTPUT_TO_FLOOR} 23500
 set_temp ${RETURN_FROM_FLOOR} 23500
 set_temp ${HOT_WATER} 45000
-set_temp ${PUMP_OUTPUT} 20000
+set_temp ${PUMP_OUTPUT} 17000
 set_temp ${INDOOR} 20000
 
 current_temps
-echo "Start pump_controller"
+echo "Start pump_controller with simulate attribute"
 sleep 20
 
+date
 echo "Test 1 Heat and hot water needed"
 echo "Setting Return from floor and hot water to below heat needed theshold"
 set_temp ${RETURN_FROM_FLOOR} 18000
-set_temp ${HOTWATER} 37000
+set_temp ${HOT_WATER} 37000
 current_temps
 echo "Waiting 60s"
 sleep 60
+date
 echo "Setting pump output higher than out to floor"
-set_temp PUMP_OUTPUT 28000
+set_temp ${PUMP_OUTPUT} 28000
 current_temps
 echo "Waiting 120s to allow pump output hotter than output to floor validation to complete"
 sleep 120
+date
 echo "Setting Output_to_floor above max"
 set_temp ${OUTPUT_TO_FLOOR} 30250
+set_temp ${RETURN_FROM_FLOOR} 29000
 current_temps
-echo "Waiting 60s"
+date
+echo "Pumpcontroller should switch to HW porduction, Waiting 60s"
 sleep 60
-echo "Setting pump output above max"
+date
+echo "Setting pump output above max, pumpcontroller should stop"
 set_temp ${PUMP_OUTPUT} 51000
 current_temps
 echo "done"
@@ -101,31 +107,44 @@ echo "Wait longer than pump restart delay, 1850 seconds "
 sleep 1850
 
 
+date
 echo "Test 2 Only hot water needed"
 echo "Setting hot water to below heat needed theshold"
-set_temp ${HOTWATER} 37000
+set_temp ${HOT_WATER} 37000
+set_temp ${PUMP_OUTPUT} 18000
 current_temps
-echo "Waiting 60s"
+echo "Pumpcontroller should start producing HW Waiting 60s"
 sleep 60
-echo "Setting pump output higher Hotwater"
-set_temp PUMP_OUTPUT 38000
+date
+echo "Setting pump output higher"
+set_temp ${PUMP_OUTPUT} 38000
 current_temps
 echo "Waiting 120s to allow pump output hotter than hotwater validation to complete"
 sleep 120
-echo "Setting pump output above max"
+date
+echo "Setting pump output above max, pumpcontroller should stop"
+set_temp ${HOT_WATER} 45000
 set_temp ${PUMP_OUTPUT} 51000
 current_temps
 echo "done"
 
 
 echo "Wait longer than pump restart delay, 1850 seconds "
-sleep 1850
+sleep 900
+set_temp ${PUMP_OUTPUT} 21000
+set_temp ${RETURN_FROM_FLOOR} 24000
+sleep 950
 
 
+date
 echo "Test 3 Heat and hot water needed but pump never starts up"
 echo "Setting Return from floor and hot water to below heat needed theshold"
+set_temp ${PUMP_OUTPUT} 17000
 set_temp ${RETURN_FROM_FLOOR} 18000
-set_temp ${HOTWATER} 37000
+set_temp ${OUTPUT_TO_FLOOR} 18000
+set_temp ${HOT_WATER} 37000
 current_temps
 sleep 240
+date
+echo "pumpcontroller should terminate"
 echo "done"
