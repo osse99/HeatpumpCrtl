@@ -219,11 +219,8 @@ int start_heat_run()
 				log_quit("Get_temperature failed:", t_pump_output, 0);
 			}
 			print_verbose("Heat run, checking that pump has started to produce heat");
-			if ( verbose || verbose_temp )
-			{
-				printf("Floor temp: %3.3f Pump output: %3.3f\n", floor_temp, temp);
-				printf("t_output_to_floor: %s t_pump_output: %s\n", t_output_to_floor, t_pump_output);
-			}
+			printf("Floor temp: %3.3f Pump output: %3.3f\n", floor_temp, temp);
+			printf("t_output_to_floor: %s t_pump_output: %s\n", t_output_to_floor, t_pump_output);
 			if ( floor_temp > temp)
 			{
 				log_quit("Heat run", "No heat from pump after 3 cycles", 0);
@@ -343,7 +340,7 @@ int to_cold()
 {
 	float temp;
 
-	if (get_temperature(t_outdoor, &temp))
+	if (get_temperature(t_outdoor, &temp) != 0)
 	{	
 		log_quit("Get_temperature failed:", t_outdoor, 0);
 	}
@@ -363,16 +360,20 @@ int hot_water()
 {
 	float temp;
 
-	if (get_temperature(t_hotwater, &temp))
+	if (get_temperature(t_hotwater, &temp) != 0)
 	{	
 		log_quit("Get_temperature failed:", t_hotwater, 0);
 	}
 	print_verbose("in Hot water");
 	if ( temp <= min_t_hotwater )
 	{
+		logging("Hot_water", "Hot water temp to low", 0);
+		if ( verbose || verbose_temp )
+		{
+			printf("in hot_water: needed\n");
+		}
 		return(1);
 	}
-	logging("Hot_water", "Hot water temp OK", 0);
 	return(0);
 }
 
@@ -381,11 +382,11 @@ int heat()
 {
 	float current_temp, outdoor_temp, target_temp;
 
-	if (get_temperature(t_return_from_floor, &current_temp))
+	if (get_temperature(t_return_from_floor, &current_temp) != 0)
 	{	
 		log_quit("Get_temperature failed:", t_return_from_floor, 0);
 	}
-	if (get_temperature(t_outdoor, &outdoor_temp))
+	if (get_temperature(t_outdoor, &outdoor_temp) != 0)
 	{	
 		log_quit("Get_temperature failed:", t_outdoor, 0);
 	}
@@ -507,10 +508,7 @@ int main(int argc, char *argv[] )
 			start_hotwater_run();
 			continue;
 		}
-		if ( verbose || verbose_temp )
-		{
-			printf("Not cold and no hot water\n");
-		}
+		printf("Not cold and no hot water\n");
 		sleep(loop_delay);
 	}
 }
