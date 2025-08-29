@@ -48,6 +48,7 @@ int max_floor_output=29;
 int pump_max_output=50;
 int min_t_hotwater=39;
 int min_t_outdoor=-10;
+int ok_t_hotwater=42;
 
 // Target temp calculation
 int m_value=22;
@@ -77,6 +78,7 @@ ConfigMap mappings[] = {
 	{"MAX_FLOOR_OUTPUT", &max_floor_output, 'i'},
 	{"PUMP_MAX_OUTPUT", &pump_max_output, 'i'},
 	{"MIN_TEMP_HOTWATER", &min_t_hotwater, 'i'},
+	{"OK_TEMP_HOTWATER", &ok_t_hotwater, 'i'},
 	{"MIN_OUTDOOR", &min_t_outdoor, 'i'},
 	{"M_VALUE", &m_value, 'i'},
 	{"K_VALUE", &k_value, 'f'},
@@ -235,25 +237,36 @@ int start_heat_run()
 	}
 	while ( temp < max_floor_output );
 	print_verbose("Floor is hot, switching to hotwater");
-	logging("Heat run", "Floor is hot, switching to hotwater", 0);
-	// Start hot water production
-	digitalWrite(valve_pin, 1);	
-	do
-	{
-		sleep(loop_delay);
-		print_verbose("Heat run, start hotwater");
-		if (get_temperature(t_pump_output, &temp) != 0)
-		{	
-			log_quit("Get_temperature failed:", t_pump_output, 0);
-		}
-		if ( pump_working > max_pump_running_time )
-		{
-			log_quit("Heat run", "Pump running longer than MAX_PUMP_RUNNING_TIME, aborting", 0);
-		}
-		pump_working++;
+	if (get_temperature(t_hotwater, &temp) != 0)
+	{	
+		log_quit("Get_temperature failed:", t_hotwater, 0);
 	}
-	while ( temp < pump_max_output );
-	print_verbose("Heat loop hotwater: pump_output > pump_max_output");
+	if ( temp < ok_t_hotwater )
+	{	
+		logging("Heat run", "heating hotwater", 0);
+		// Start hot water production
+		digitalWrite(valve_pin, 1);	
+		do
+		{
+			sleep(loop_delay);
+			print_verbose("Heat run, start hotwater");
+			if (get_temperature(t_pump_output, &temp) != 0)
+			{	
+				log_quit("Get_temperature failed:", t_pump_output, 0);
+			}
+			if ( pump_working > max_pump_running_time )
+			{
+				log_quit("Heat run", "Pump running longer than MAX_PUMP_RUNNING_TIME, aborting", 0);
+			}
+			pump_working++;
+		}
+		while ( temp < pump_max_output );
+		print_verbose("Heat loop hotwater: pump_output > pump_max_output");
+	} else {
+		print_verbose("Heat loop hotwater: water is already hot, skipping");
+		logging("Heat run", "Water is already hot skipping", 0);
+	}
+
 	// Stop heatpump, reset valve
 	digitalWrite(heatpump_pin,0);
 	digitalWrite(valve_pin, 0);
@@ -261,8 +274,8 @@ int start_heat_run()
 	// Done shut down
 	pwmWrite(PWMPIN1,PWMOFF);
 	pwmWrite(PWMPIN2,PWMOFF);
-	logging("Heat run", "Hotwater is at pump max temp, done", 0);
-	print_verbose("Hotwater is at pump max temp, done");
+	logging("Heat run", "Done", 0);
+	print_verbose("Heat run: done");
 	// Delay until next acceptable pump start
 	sleep(next_start_delay);
 	return(0);
@@ -344,7 +357,7 @@ int to_cold()
 	{	
 		log_quit("Get_temperature failed:", t_outdoor, 0);
 	}
-	
+
 	print_verbose("in To cold");
 	if ( temp < min_t_outdoor )
 	{	

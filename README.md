@@ -14,8 +14,6 @@ Heatpump controller for RaspberryPi
 
 ### The target floor temperature is calculated based on the outdoor temperature and a simple y=kx+m equation.
 
-### Upcoming: Optimized target temperatures based on wether forecast (SMHI) and forecast solar electricty production (solcast.com.au)
-
 ### Might be working now so v0.3 :-)
 
 
