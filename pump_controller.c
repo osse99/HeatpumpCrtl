@@ -193,7 +193,7 @@ int gpio_setup()
 // Run to max floor temp and max hotwater temp
 int start_heat_run()
 {
-	float temp, floor_temp;
+	float temp, floor_temp, pump_output;
 	int pump_working;
 
 	logging("Heat run", "Starting to heat floor", 0);
@@ -233,9 +233,13 @@ int start_heat_run()
 		{
 			log_quit("Heat run", "Pump running longer than MAX_PUMP_RUNNNING_TIME, aborting", 0);
 		}
+		if ( get_temperature(t_pump_output, &pump_output ) != 0)
+                {
+                        log_quit("Get_temperature failed:", t_pump_output, 0);
+                }
 		pump_working++;
 	}
-	while ( temp < max_floor_output );
+	while ( temp < max_floor_output && pump_output < pump_max_output);
 	print_verbose("Floor is hot, switching to hotwater");
 	if (get_temperature(t_hotwater, &temp) != 0)
 	{	

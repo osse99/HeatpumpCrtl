@@ -33,3 +33,24 @@ Heatpump controller for RaspberryPi
 * CMOS 4049 Hex buffer
 * Opto isolated 2 channel relay card
 
+
+##Dependencies
+
+#wiringpi library
+    5  wget https://github.com/WiringPi/WiringPi/releases/download/3.14/wiringpi_3.14_armhf.deb
+    6  ls
+    7  dpkg -i wiringpi_3.14_armhf.deb
+
+#libconfig
+apt install libconfig-dev
+
+##Autostart
+Tailor pump_controller.service to your needs
+Copy pump_controller.service to /etc/systemd/system/
+Run systemctl daemon-reload
+
+##Statistics
+Provided "as is", publishes temp data to a javascript page using mqtt in  real time and populates diagram with history on reload
+MQTT server and database on othe host
+Page is at tapmuk1.tapmuk.se/history.html
+
