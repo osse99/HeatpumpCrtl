@@ -36,12 +36,12 @@ Heatpump controller for RaspberryPi
 
 ##Dependencies
 
-#wiringpi library
+* wiringpi library
     5  wget https://github.com/WiringPi/WiringPi/releases/download/3.14/wiringpi_3.14_armhf.deb
     6  ls
     7  dpkg -i wiringpi_3.14_armhf.deb
 
-#libconfig
+*libconfig
 apt install libconfig-dev
 
 ##Autostart
